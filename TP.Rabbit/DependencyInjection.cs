@@ -8,7 +8,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddRabbitMq(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        Func<IServiceProvider, IConnectionFactory>? configureConnectionFactory = null)
     {
         var configurationSection = configuration.GetSection(nameof(RabbitMqSettings))!;
 
@@ -17,21 +18,27 @@ public static class DependencyInjection
         services.Configure<RabbitMqSettings>(configurationSection);
 
         services.AddSingleton<IConnectionFactory>(x =>
-            new ConnectionFactory
-            {
-                HostName = rabbitSettings.HostName,
-                Port = rabbitSettings.Port,
-                UserName = rabbitSettings.UserName,
-                Password = rabbitSettings.Password,
-                DispatchConsumersAsync = true,
-                ConsumerDispatchConcurrency = 1,
-                UseBackgroundThreadsForIO = false
-            });
+            configureConnectionFactory?.Invoke(x)
+                ?? DefaultConnectionFactory(rabbitSettings));
 
         services.AddSingleton<RabbitMqConnection>();
         services.AddSingleton<IRabbitMqConsumer, RabbitMqConsumer>();
         services.AddScoped<IRabbitMqProducer, RabbitMqProducer>();
 
         return services;
+    }
+
+    private static ConnectionFactory DefaultConnectionFactory(RabbitMqSettings rabbitSettings)
+    {
+        return new ConnectionFactory
+        {
+            HostName = rabbitSettings.HostName,
+            Port = rabbitSettings.Port,
+            UserName = rabbitSettings.UserName,
+            Password = rabbitSettings.Password,
+            DispatchConsumersAsync = true,
+            ConsumerDispatchConcurrency = 1,
+            UseBackgroundThreadsForIO = false
+        };
     }
 }
